@@ -1,0 +1,8 @@
+*.o
+*.un~
+*.swp
+*.swo
+dump.sh
+gjumper
+a.out
+test
