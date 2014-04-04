@@ -84,35 +84,6 @@ std::string GJRecursiveASTVisitor::getNameForTagType(const TagType* type){
         + decl->getQualifiedNameAsString() + "'";
 }
 
-void GJRecursiveASTVisitor::addHint(TypeLoc tl){
-    addHint(tl.getSourceRange(), tl.getTypePtr());
-}
-#define TRY_TYPE_IMPL(NAME) \
-    if(isa<NAME##Type>(type)){ \
-        NAME##Type* casted = (NAME##Type*) type; \
-        FUNC(getRangeFor##NAME##Type(casted), getNameFor##NAME##Type(casted)) \
-    }
-
-std::string GJRecursiveASTVisitor::getNameForType(clang::Type const* type){
-#define FUNC(RANGE, NAME) return NAME;
-    GJ_HINT_TYPE_LIST(TRY_TYPE_IMPL)
-    return std::string();
-#undef FUNC
-}
-
-SourceRange GJRecursiveASTVisitor::getRangeForType(clang::Type const* type){
-#define FUNC(RANGE, NAME) return RANGE;
-    GJ_HINT_TYPE_LIST(TRY_TYPE_IMPL)
-    return SourceRange();
-#undef FUNC
-}
-void GJRecursiveASTVisitor::addHint(SourceRange refRange, const Type * type){
-#define FUNC(RANGE, NAME) addHint(refRange, RANGE, NAME); return;
-    GJ_HINT_TYPE_LIST(TRY_TYPE_IMPL)
-#undef FUNC
-}
-#undef TRY_TYPE_IMPL
-
 bool GJRecursiveASTVisitor::VisitTagTypeLoc(TagTypeLoc tl){
     return true;
 }
