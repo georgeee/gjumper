@@ -6,116 +6,117 @@
 
 #include "llvm/Support/raw_ostream.h"
 
-//bool gj::GJRecursiveASTVisitor::VisitMaterializeTemporaryExpr(MaterializeTemporaryExpr* expr){
-//return false;
-//}
-//
+bool GJRecursiveASTVisitor::StartTraversing(Decl *D){
+    return TraverseDecl(D);
+}
 
-//bool gj::GJRecursiveASTVisitor::VisitEnumConstantDecl(EnumConstantDecl* decl){
-
-//}
+bool GJRecursiveASTVisitor::VisitClassTemplateSpecializationDecl(ClassTemplateSpecializationDecl * decl){
+    ClassTemplateDecl * templateDecl = decl->getSpecializedTemplate();
+    addHint(decl->getSourceRange(), templateDecl->getSourceRange(), 
+                std::string("template ") + getTemplateDeclAsString(templateDecl),
+                std::string("specialization ") + QualType::getAsString(decl->getTypeForDecl(), Qualifiers()));
+    return true;
+}
 
 bool GJRecursiveASTVisitor::VisitVarDecl(VarDecl * decl){
-    if(const AutoType* type = dyn_cast<AutoType>(decl->getType().getTypePtr())){
-        //llvm::errs() << "Tik Tok! isDeduced: "
-            //<< (type->isDeduced()?"true":"false") << " hasInit: "
-            //<< (decl->hasInit()?"true":"false") << '\n';
+    const Type * type = decl->getType().getTypePtr();
+    auto addVarDeclHint = [type, decl, this] (SourceRange typeDeclRange, std::string typeDeclDesc, const Type * varType) {
+        addHint(decl->getSourceRange(), typeDeclRange,
+                "{type " + QualType::getAsString(varType, Qualifiers()) + "} " + decl->getQualifiedNameAsString(), typeDeclDesc);
+    };
+    if(const AutoType* autoType = dyn_cast<AutoType>(type)){
         TypeLoc tl = decl->getTypeSourceInfo()->getTypeLoc();
         if(decl->hasInit()){
-            const Type * initType = decl->getInit()->getType().getTypePtr();
-            addHint(tl.getSourceRange(), getRangeForType(initType),
-                    std::string("<auto> ") + getNameForType(initType));
+            QualType qType = decl->getInit()->getType();
+            HintTypeDetails details = getDetailsForType(qType);
+            addHint(tl.getSourceRange(), std::get<0>(details),
+                   std::get<1>(details), std::string("<auto> ") + std::get<2>(details));
         }
     }
+    const Type * desugaredType = type->getUnqualifiedDesugaredType();
+    HintTypeDetails details = getDetailsForType(desugaredType, Qualifiers());
+    addVarDeclHint(std::get<0>(details), std::get<1>(details), type);
     return true;
 }
 
 bool gj::GJRecursiveASTVisitor::VisitDeclRefExpr(DeclRefExpr* expr){
-    NamedDecl * foundDecl = expr->getFoundDecl();
-    std::string name;
-    if(isa<ValueDecl>(foundDecl)){
-        name += ((ValueDecl*) foundDecl)->getType().getAsString();
-        name += " ";
-    }
-    name += foundDecl->getQualifiedNameAsString();
-    addHint(expr->getSourceRange(), foundDecl->getSourceRange(), name);
+    ValueDecl * decl = expr->getDecl();
+    std::string name = decl->getType().getAsString() + ' ' + decl->getQualifiedNameAsString();
+    addHint(expr->getSourceRange(), decl->getSourceRange(), name, std::string("reference to ") + name);
+    if(auto functionDecl = dyn_cast<FunctionDecl>(decl))
+        if(FunctionTemplateDecl * templateDecl = functionDecl->getPrimaryTemplate()){
+            addHint(expr->getSourceRange(), templateDecl->getSourceRange(),
+                    "function template " + getTemplateDeclAsString(templateDecl),
+                    std::string("reference to ") + name);
+        }
     return true;
 }
 
-bool GJRecursiveASTVisitor::VisitStmt(Stmt * stmt){
-    stmt->dumpColor();
+bool GJRecursiveASTVisitor::VisitFunctionDecl(FunctionDecl * decl){
+    std::string name = decl->getType().getAsString() + ' ' + decl->getQualifiedNameAsString();
+    if(!decl->isTemplateInstantiation())
+        if(FunctionTemplateDecl * templateDecl = decl->getPrimaryTemplate()){
+            addHint(decl->getSourceRange(), templateDecl->getSourceRange(),
+                    "function template '" + getTemplateDeclAsString(templateDecl),
+                    std::string("specialization ") + name);
+        }
     return true;
 }
 
-SourceRange GJRecursiveASTVisitor::getRangeForAutoType(AutoType const* type){
+
+GJRecursiveASTVisitor::HintTypeDetails GJRecursiveASTVisitor::getDetailsForAutoType(AutoType const* type, Qualifiers qualifiers){
     QualType qt = type->getDeducedType();
     if(!qt.isNull()){
-        SourceRange range = getRangeForType(qt.getTypePtr());
-        return range;
+        HintTypeDetails typeDetails = getDetailsForType(qt);
+        return make_tuple(std::get<0>(typeDetails),
+                std::get<1>(typeDetails),
+                std::string("<auto> ") + std::get<2>(typeDetails));
     }
-    return SourceRange();
+    return emptyHintTypeDetails;
 }
 
-std::string GJRecursiveASTVisitor::getNameForAutoType(AutoType const* type){
-    llvm::errs() << "getNameForAutoType()\n";
-    QualType qt = type->getDeducedType();
-    if(!qt.isNull()){
-        return std::string("auto ") + getNameForType(qt.getTypePtr());
-    }
-    return std::string();
-}
-
-SourceRange GJRecursiveASTVisitor::getRangeForTemplateTypeParmType(const TemplateTypeParmType* type){
-    return type->getDecl()->getSourceRange();
-}
-
-std::string GJRecursiveASTVisitor::getNameForTemplateTypeParmType(const TemplateTypeParmType* type){
+GJRecursiveASTVisitor::HintTypeDetails GJRecursiveASTVisitor::getDetailsForTemplateTypeParmType(const TemplateTypeParmType* type, Qualifiers qualifiers){
     TemplateTypeParmDecl * decl = type->getDecl();
-    return std::string("template param type '") + decl->getIdentifier()->getNameStart() + "'";
+    std::string paramName = decl->getIdentifier()->getNameStart();
+    return make_tuple(decl->getSourceRange(),
+            std::string("template param ") + paramName,
+            QualType::getAsString(type, qualifiers));
 }
 
-SourceRange GJRecursiveASTVisitor::getRangeForTagType(const TagType* type){
-    return type->getDecl()->getSourceRange();
-}
-
-std::string GJRecursiveASTVisitor::getNameForTagType(const TagType* type){
+GJRecursiveASTVisitor::HintTypeDetails GJRecursiveASTVisitor::getDetailsForTagType(const TagType* type, Qualifiers qualifiers){
     TagDecl * decl = type->getDecl();
-    return std::string("type '") + decl->getKindName() + " "
-        + decl->getQualifiedNameAsString() + "'";
+    std::string kindName = decl->getKindName();
+    std::string qualName = decl->getQualifiedNameAsString();
+    return make_tuple(decl->getSourceRange(),
+            kindName + ' ' + qualName,
+            QualType::getAsString(type, qualifiers));
 }
 
-bool GJRecursiveASTVisitor::VisitTagTypeLoc(TagTypeLoc tl){
-    return true;
+GJRecursiveASTVisitor::HintTypeDetails GJRecursiveASTVisitor::getDetailsForTypedefType(TypedefType const* type, Qualifiers qualifiers){
+    TypedefNameDecl * decl = type->getDecl();
+    QualType subType = decl->getUnderlyingType();
+    HintTypeDetails details = getDetailsForType(subType);
+    if(std::get<0>(details).isInvalid()) return emptyHintTypeDetails;
+    return make_tuple(std::get<0>(details),
+            std::get<1>(details),
+            std::string("typedef ") + (decl->getQualifiedNameAsString()) + " (" + std::get<2>(details) + ')');
 }
 
-bool GJRecursiveASTVisitor::VisitTypeLoc(TypeLoc tl){
-    addHint(tl);
+GJRecursiveASTVisitor::HintTypeDetails GJRecursiveASTVisitor::getDetailsForPointerType(PointerType const* type, Qualifiers qualifiers){
+    QualType subType = type->getPointeeType();
+    HintTypeDetails details = getDetailsForType(subType);
+    if(std::get<0>(details).isInvalid()) return emptyHintTypeDetails;
+    return make_tuple(std::get<0>(details),
+            std::get<1>(details),
+            std::string("(*) ") + std::get<2>(details));
+}
 
-    tl.getType().dump((std::string("Some typeLoc's type:")
-                + tl.getTypePtr()->getTypeClassName()).c_str());
-    llvm::errs() << "   ";
-    if(const AutoType* type = dyn_cast<AutoType>(tl.getType().getTypePtr())){
-        llvm::errs() << (type->isDeduced()?"true":"false") << " ";
+GJRecursiveASTVisitor::HintTypeDetails GJRecursiveASTVisitor::getDetailsForTemplateSpecializationType(TemplateSpecializationType const* type, Qualifiers qualifiers){
+    TemplateDecl * decl = type->getTemplateName().getAsTemplateDecl();
+    if(decl){
+        return make_tuple(decl->getSourceRange(),
+                std::string("template ") + getTemplateDeclAsString(decl),
+                QualType::getAsString(type, qualifiers));
     }
-    tl.getSourceRange().getBegin().dump(Rewrite.getSourceMgr());
-    llvm::errs() << " ";
-    tl.getSourceRange().getEnd().dump(Rewrite.getSourceMgr());
-    llvm::errs() << "\n";
-    return true;
-}
-
-bool GJRecursiveASTVisitor::VisitDeclaratorDecl(DeclaratorDecl * decl){
-    TypeSourceInfo * typeSourceInfo = decl->getTypeSourceInfo();
-    TypeLoc typeLoc = typeSourceInfo->getTypeLoc();
-    return true;
-}
-
-bool GJRecursiveASTVisitor::VisitDecl(Decl * decl){
-    decl->dumpColor();
-    return true;
-}
-
-bool GJRecursiveASTVisitor::VisitType(Type * type){
-    type->dump();
-    return true;
+    return emptyHintTypeDetails;
 }

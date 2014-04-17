@@ -3,10 +3,11 @@ LLVMCOMPONENTS := cppbackend
 RTTIFLAG := #-fno-rtti
 LLVMCONFIG := /usr/bin/llvm-config-3.3
 
-CXXFLAGS := -g -I$(shell $(LLVMCONFIG) --src-root)/tools/clang/include -I$(shell $(LLVMCONFIG) --obj-root)/tools/clang/include $(shell $(LLVMCONFIG) --cxxflags) $(RTTIFLAG) -Wno-c++11-extensions -std=c++11
+CXXFLAGS := -g -I$(shell $(LLVMCONFIG) --src-root)/tools/clang/include -I$(shell $(LLVMCONFIG) --obj-root)/tools/clang/include $(shell $(LLVMCONFIG) --cxxflags) $(RTTIFLAG) -Wno-c++11-extensions -std=c++11 -fexceptions
 LLVMLDFLAGS := $(shell $(LLVMCONFIG) --ldflags --libs $(LLVMCOMPONENTS))
+LINKFLAGS := -ljsoncpp
 
-SOURCES = main.cpp astvisitor.cpp datatypes.cpp astvisitor_visits.cpp
+SOURCES = main.cpp astvisitor.cpp datatypes.cpp astvisitor_visits.cpp hintdb_exporter.cpp processor.cpp
 
 OBJECTS = $(SOURCES:.cpp=.o)
 EXES = gjumper
@@ -37,7 +38,7 @@ CLANGLIBS = \
 all: $(OBJECTS) $(EXES)
 
 gjumper: $(OBJECTS)
-	$(CXX) -g -o $@ $(OBJECTS) $(CLANGLIBS) $(LLVMLDFLAGS)
+	$(CXX) -g -o $@ $(OBJECTS) $(CLANGLIBS) $(LLVMLDFLAGS) $(LINKFLAGS)
 
 clean:
 	-rm -f $(EXES) $(OBJECTS) *~

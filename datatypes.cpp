@@ -72,16 +72,17 @@ const bool gj::abs_pos_t::operator!= (const abs_pos_t& pos) const{
     return !(*this==pos);
 }
 
-ostream& gj::named_pos_t::printTo (ostream& os) const{
-    os << '<' << name << ", ";
-    abs_pos_t::printTo(os);
-    os << '>';
-    return os;
-}
-const bool gj::named_pos_t::operator< (const named_pos_t & npos) const{
-    if(abs_pos_t::operator==(npos)) return name.compare(npos.name) < 0;
-    return abs_pos_t::operator<(npos);
-}
+//ostream& gj::named_pos_t::printTo (ostream& os) const{
+    //os << '<' << name << ", ";
+    //abs_pos_t::printTo(os);
+    //os << '>';
+    //return os;
+//}
+//const bool gj::named_pos_t::operator< (const named_pos_t & npos) const{
+    //if(abs_pos_t::operator==(npos)) return name.compare(npos.name) < 0;
+    //return abs_pos_t::operator<(npos);
+//}
+
 ostream& gj::range_t::printTo (ostream& os) const{
     return os << start << ".." << end;
 }
@@ -89,12 +90,15 @@ const bool gj::range_t::operator< (const range_t & range) const{
     return (start != range.start) ? start < range.start : end < range.end;
 }
 ostream& gj::hint_t::printTo (ostream& os) const{
-    return os << '{' << range << ' ' << pos << ' ' << type << ' ' << target_type << '}';
+    return os << '{' << range << " \"" << src_name << "\" -> \"" << dest_name
+        << "\" " << pos << ' ' << type << ' ' << target_type << '}';
 }
 const bool gj::hint_t::operator< (const hint_t & hint) const{
     if(range.start != hint.range.start) return range.start < hint.range.start;
     if(type != hint.type) return type < hint.type;
-    int cmp = pos.name.compare(hint.pos.name);
+    int cmp = src_name.compare(hint.src_name);
+    if(cmp != 0) return cmp < 0;
+    cmp = dest_name.compare(hint.dest_name);
     if(cmp != 0) return cmp < 0;
     if(range.end != hint.range.end) return range.end < hint.range.end;
     return pos < hint.pos;
