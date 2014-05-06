@@ -92,18 +92,22 @@ namespace gj{
 
     //@TODO At the moment hint_base implementation is very-very simple, in the future
     //it's better to implement interval tree
-    class hint_base_t : public set<pair<pos_t, hint_t*> >, public printable{
+    class hint_base_t : public set<pair<pos_t, const hint_t*> >, public printable{
         public:
-            typedef pair<pos_t, hint_t*> element_t;
+            typedef pair<pos_t, const hint_t*> element_t;
             void add(const hint_t & _hint);
-            vector<hint_t*> resolve_position(pos_t pos) const;
-            vector<hint_t*> resolve_position(int line, int index) const;
+            void add(const hint_base_t & hint_base);
+            vector<const hint_t*> resolve_position(pos_t pos) const;
+            vector<const hint_t*> resolve_position(int line, int index) const;
             ~hint_base_t();
             ostream& printTo (ostream& os) const;
     };
 
     class global_hint_base_t : public map<string, hint_base_t>, public printable{
+        const std::string scopeFileName;
         public:
+            global_hint_base_t() {}
+            global_hint_base_t(std::string scopeFileName) : scopeFileName(scopeFileName) {}
             ostream& printTo (ostream& os) const;
             void add(const string & file, const hint_t & hint);
     };

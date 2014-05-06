@@ -79,7 +79,7 @@ abs_pos_t hintdb_json_importer::retrieve_abs_pos(const Json::Value & val){
     return abs_pos_t(val[0].asString(), val[1].asInt(), val[2].asInt());
 }
 
-Json::Value hintdb_json_exporter::getJSONValue(const hint_type & type){
+Json::Value hintdb_json_exporter::getJSONValue(hint_type type){
     switch(type){
         case REF_HT: return hintdb_json_values::ref_ht;
         case DECL_HT: return hintdb_json_values::decl_ht;
@@ -125,4 +125,110 @@ hint_base_t hintdb_json_importer::import_base(){
     in >> val;
     return retrieve_hint_base(val);
 } 
+
+double_converted_json_hint_base::double_converted_json_hint_base(hint_base_t hint_base) : json(NULL){
+    this->hint_base = new hint_base_t(hint_base);
+}
+
+double_converted_json_hint_base::double_converted_json_hint_base(Json::Value json) : hint_base(NULL){
+    json = new Json::Value(json);
+}
+
+double_converted_json_hint_base::~double_converted_json_hint_base(){
+    if(json != NULL) delete json;
+    if(hint_base != NULL) delete hint_base;
+}
+
+void double_converted_json_hint_base::drop_json(){
+    if(json != NULL) delete json;
+}
+void double_converted_json_hint_base::drop_hint_base(){
+    if(hint_base != NULL) delete hint_base;
+}
+
+void double_converted_json_hint_base::ensure_json_not_null(){
+    if(json != NULL) return;
+    json = new Json::Value(hintdb_json_exporter::getJSONValue(*hint_base));
+}
+
+
+void double_converted_json_hint_base::ensure_hint_base_not_null(){
+    if(hint_base != NULL) return;
+    hint_base = new hint_base_t(hintdb_json_importer::retrieve_hint_base(*json));
+}
+
+splitted_json_hint_base::splitted_json_hint_base(hint_base_t hint_base, std::string filename){
+    hint_base_t rest_hdb;
+    //for(pair<const std::string, const hint_t*> _pair : hint_base)
+        //std::string & _filename = _pair.first;
+    for(pair<pos_t, const hint_t *> _pair : hint_base){
+        const hint_t & hint = *_pair.second;
+        const std::string & _filename = hint.pos.file;
+        if(_filename == filename) 
+            rest_hdb.add(hint);
+        else{
+            auto iter = foreign_refs.find(_filename);
+            if(iter == foreign_refs.end()){
+                hint_base_t hdb;
+                hdb.add(hint);
+                foreign_refs.insert(make_pair(_filename, hdb));
+            }else{
+                iter->second.get_hint_base().add(hint);
+            }
+        }
+    }
+    rest = rest_hdb;
+}
+
+splitted_json_hint_base::splitted_json_hint_base(hint_base_t hint_base) : rest(hint_base) {}
+splitted_json_hint_base::splitted_json_hint_base(Json::Value json) : rest(json[REST_IDX]) {
+    Json::Value & foreign_json = json[FOREIGN_REFS_IDX];
+    for(auto iter = foreign_json.begin(); iter != foreign_json.end(); ++iter){
+        std::string key = iter.key().asString();
+        foreign_refs[key] = *iter;
+    }
+}
+
+hint_base_t splitted_json_hint_base::as_hint_base(){
+    hint_base_t hint_base = rest.get_hint_base();
+    for(pair<const std::string, double_converted_json_hint_base> _pair : foreign_refs)
+        hint_base.add(_pair.second.get_hint_base());
+    return hint_base;
+}
+
+Json::Value splitted_json_hint_base::as_json(){
+    Json::Value json;
+    json[REST_IDX] = rest.get_json();
+    Json::Value foreign_json;
+    for(pair<const std::string, double_converted_json_hint_base> _pair : foreign_refs)
+        foreign_json[_pair.first] = _pair.second.get_json();
+    json[FOREIGN_REFS_IDX] = foreign_json;
+    return json;
+}
+
+void splitted_json_hint_base::replace_foreign_refs(std::string filename, double_converted_json_hint_base hint_base){
+    foreign_refs[filename] = hint_base;
+}
+void splitted_json_hint_base::add_foreign_refs(std::string filename, double_converted_json_hint_base hint_base){
+    auto iter = foreign_refs.find(filename);
+    if(iter == foreign_refs.end()) foreign_refs[filename] = hint_base;
+    else{
+        foreign_refs[filename].get_hint_base().add(hint_base.get_hint_base());
+        foreign_refs[filename].drop_json();
+    }
+}
+
+void splitted_json_hint_base::clear_foreign_refs(std::string filename){
+    foreign_refs.erase(filename);
+}
+
+
+double_converted_json_hint_base & splitted_json_hint_base::get_rest(){
+    return rest;
+}
+void splitted_json_hint_base::set_rest(double_converted_json_hint_base hint_base){
+    rest = hint_base;
+}
+
+
 

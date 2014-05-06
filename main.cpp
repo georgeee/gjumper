@@ -70,7 +70,9 @@ int main(int argc, char **argv)
             exit(EXIT_FAILURE);
         }
 
-        global_hint_base_t hint_base = proc.process(fileName);
+        auto collectResult = proc.collect(fileName);
+        global_hint_base_t & hint_base = collectResult.first;
+
 
         hintdb_json_exporter exporter(cout);
 
@@ -79,6 +81,9 @@ int main(int argc, char **argv)
             cout << el.second << "\n\n";
             exporter.export_base(el.second);
         }
+        cout << " -- parents:\n";
+        for(const string parent : collectResult.second)
+            cout << " ---- " << parent << "\n";
     }
 
     return 0;

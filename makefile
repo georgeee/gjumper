@@ -5,9 +5,9 @@ LLVMCONFIG := /usr/bin/llvm-config-3.3
 
 CXXFLAGS := -g -I$(shell $(LLVMCONFIG) --src-root)/tools/clang/include -I$(shell $(LLVMCONFIG) --obj-root)/tools/clang/include $(shell $(LLVMCONFIG) --cxxflags) $(RTTIFLAG) -Wno-c++11-extensions -std=c++11 -fexceptions
 LLVMLDFLAGS := $(shell $(LLVMCONFIG) --ldflags --libs $(LLVMCOMPONENTS))
-LINKFLAGS := -ljsoncpp
+LINKFLAGS := -ljsoncpp -lboost_filesystem -lboost_system
 
-SOURCES = main.cpp astvisitor.cpp datatypes.cpp astvisitor_visits.cpp hintdb_exporter.cpp processor.cpp
+SOURCES = main.cpp astvisitor.cpp datatypes.cpp astvisitor_visits.cpp hintdb_exporter.cpp processor.cpp hierarcy_tree.cpp
 
 OBJECTS = $(SOURCES:.cpp=.o)
 EXES = gjumper
