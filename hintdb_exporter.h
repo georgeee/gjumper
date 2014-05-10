@@ -91,10 +91,14 @@ class double_converted_json_hint_base {
         }
 
         double_converted_json_hint_base& operator=(const double_converted_json_hint_base & base){
+            drop_json();
+            drop_hint_base();
             copy_from(base);
             return *this;
         }
         double_converted_json_hint_base& operator=(double_converted_json_hint_base && base){
+            drop_json();
+            drop_hint_base();
             copy_from(std::forward<double_converted_json_hint_base &&>(base));
             return *this;
         }

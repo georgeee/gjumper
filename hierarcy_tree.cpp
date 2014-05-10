@@ -123,3 +123,25 @@ shared_ptr<hierarcy_tree_node> gj::hierarcy_tree::get_or_create(std::string file
 void gj::hierarcy_tree::replace_parents(std::string filename, vector<string> parents){
     replace_parents(get_or_create(filename), parents);
 }
+
+gj::hierarcy_tree::hierarcy_tree(const hierarcy_tree & tree){
+    for(const_iterator it = tree.begin(); it != tree.end(); ++it){
+        shared_ptr<hierarcy_tree_node> node = get_or_create(it->first);
+        for(auto edge : it->second->parents){
+            node->parents.insert({edge.first, get_or_create(edge.first)});
+        }
+        for(auto edge : it->second->children){
+            node->children.insert({edge.first, get_or_create(edge.first)});
+        }
+    }
+}
+gj::hierarcy_tree::~hierarcy_tree(){
+    for(iterator it = begin(); it != end(); ++it){
+        it->second->parents.clear();
+        it->second->children.clear();
+    }
+}
+gj::hierarcy_tree::hierarcy_tree(hierarcy_tree && tree){
+    for(auto pair : tree) insert(pair);
+    tree.clear();
+}

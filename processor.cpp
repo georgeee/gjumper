@@ -28,6 +28,30 @@ using namespace boost::filesystem;
 using namespace clang;
 using namespace std;
 
+gj::processor_compiler_options_holder::processor_compiler_options_holder(char ** compilerOptionsStart, char ** compilerOptionsEnd)
+    : count(compilerOptionsEnd - compilerOptionsStart), options(NULL) {
+    options = new const char*[count+1];
+    memset(options, 0, sizeof(char*)*count);
+    for(int i=0; i<count; ++i){
+        const char * src = compilerOptionsStart[i];
+        char * dest = new char[strlen(src) + 1];
+        strcpy(dest, src);
+        options[i] = dest;
+    }
+}
+pair<const char **, const char **> gj::processor_compiler_options_holder::getCompilerOptionsRange(const char * filename){
+    options[count] = filename;
+    return make_pair(options, options + count + 1);
+}
+gj::processor_compiler_options_holder::~processor_compiler_options_holder(){
+    if(options){
+        for(int i=0; i<count; ++i){
+            delete[] options[i];
+        }
+    }
+    delete[] options;
+}
+
 vector<std::string> gj::processor::loadPrjFiles(const std::string & prjFilesPath){
     vector<std::string> result;
     if(!prjFilesPath.empty() && exists(prjFilesPath)){
@@ -41,42 +65,9 @@ vector<std::string> gj::processor::loadPrjFiles(const std::string & prjFilesPath
     return result;
 }
 
-gj::processor::processor(char ** compilerOptionsStart, char ** compilerOptionsEnd, const std::string & cacheDir, const std::string & prjFilesPath): cacheDir(cacheDir), hintBaseCacher(cacheDir), projectFiles(loadPrjFiles(prjFilesPath)) {
-    Invocation = new CompilerInvocation();
-    compiler.createDiagnostics();
-    // Create an invocation that passes any flags to preprocessor
-    CompilerInvocation::CreateFromArgs(*Invocation, compilerOptionsStart,
-            compilerOptionsEnd, compiler.getDiagnostics());
-    compiler.setInvocation(Invocation);
+gj::processor::processor(char ** compilerOptionsStart, char ** compilerOptionsEnd, const std::string & cacheDir, const std::string & prjFilesPath): cacheDir(cacheDir), hintBaseCacher(cacheDir), projectFiles(loadPrjFiles(prjFilesPath)), processor_compiler_options_holder(compilerOptionsStart, compilerOptionsEnd) {}
 
-    // Set default target triple
-    llvm::IntrusiveRefCntPtr<TargetOptions> pto(new TargetOptions());
-    pto->Triple = llvm::sys::getDefaultTargetTriple();
-    llvm::IntrusiveRefCntPtr<TargetInfo>
-        pti(TargetInfo::CreateTargetInfo(compiler.getDiagnostics(),
-                    pto.getPtr()));
-    compiler.setTarget(pti.getPtr());
-
-    compiler.createFileManager();
-    
-    initHeaderSearchOptions();
-    
-    LangOptions langOpts;
-    langOpts.GNUMode = 1; 
-    langOpts.CXXExceptions = 0; 
-    langOpts.RTTI = 1; 
-    langOpts.Bool = 1; 
-    langOpts.CPlusPlus = 1; 
-    Invocation->setLangDefaults(langOpts,
-            clang::IK_CXX,
-            clang::LangStandard::lang_cxx0x);
-}
-
-gj::processor::~processor(){
-    delete Invocation;
-}
-
-void gj::processor::initHeaderSearchOptions(){
+void gj::processor::initHeaderSearchOptions(CompilerInstance & compiler){
     HeaderSearchOptions &headerSearchOptions = compiler.getHeaderSearchOpts();
     // <Warning!!> -- Platform Specific Code lives here
     // This depends on A) that you're running linux and
@@ -133,7 +124,40 @@ void gj::processor::initHeaderSearchOptions(){
 pair<global_hint_base_t, vector<string> >  gj::processor::collect(const std::string & fileName){
     global_hint_base_t hint_base(fileName);
     vector<string> parents;
+
+    CompilerInstance compiler;
+    CompilerInvocation * Invocation = new CompilerInvocation;
+    compiler.createDiagnostics();
+
+    auto compilerOptsRange = getCompilerOptionsRange(fileName.c_str());
+
+    // Create an invocation that passes any flags to preprocessor
+    CompilerInvocation::CreateFromArgs(*Invocation, compilerOptsRange.first,
+            compilerOptsRange.second, compiler.getDiagnostics());
+    compiler.setInvocation(Invocation);
+
+    // Set default target triple
+    llvm::IntrusiveRefCntPtr<TargetOptions> pto(new TargetOptions());
+    pto->Triple = llvm::sys::getDefaultTargetTriple();
+    llvm::IntrusiveRefCntPtr<TargetInfo>
+        pti(TargetInfo::CreateTargetInfo(compiler.getDiagnostics(),
+                    pto.getPtr()));
+    compiler.setTarget(pti.getPtr());
+
+    compiler.createFileManager();
     compiler.createSourceManager(compiler.getFileManager());
+    initHeaderSearchOptions(compiler);
+
+    LangOptions langOpts;
+    langOpts.GNUMode = 1; 
+    langOpts.CXXExceptions = 1; 
+    langOpts.RTTI = 1; 
+    langOpts.Bool = 1; 
+    langOpts.CPlusPlus = 1; 
+    Invocation->setLangDefaults(langOpts,
+            clang::IK_CXX,
+            clang::LangStandard::lang_cxx0x);
+
     compiler.createPreprocessor();
     compiler.getPreprocessor().addPPCallbacks(new SimpleHierarcyTreeCollector(parents, compiler.getSourceManager(), fileName));
     compiler.getPreprocessorOpts().UsePredefines = false;
@@ -146,10 +170,6 @@ pair<global_hint_base_t, vector<string> >  gj::processor::collect(const std::str
     GASTConsumer astConsumer(compiler.getSourceManager(), hint_base);
     ParseAST(compiler.getPreprocessor(), &astConsumer, compiler.getASTContext());
     compiler.getDiagnosticClient().EndSourceFile();
-
-    compiler.setASTContext(NULL);
-    compiler.setPreprocessor(NULL);
-    compiler.setSourceManager(NULL);
 
     return make_pair(hint_base, parents);
 }

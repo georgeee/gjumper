@@ -53,6 +53,9 @@ namespace gj{
         static constexpr const char * const JSON_NAMES = "names";
         static constexpr const char * const JSON_EDGES = "edges";
         public:
+            hierarcy_tree(){}
+            hierarcy_tree(const hierarcy_tree & tree);
+            hierarcy_tree(hierarcy_tree && tree);
             void add_edge(shared_ptr<hierarcy_tree_node> parent, shared_ptr<hierarcy_tree_node> child);
             void add_edge(string parent, shared_ptr<hierarcy_tree_node> child);
             void add_edge(string parent, string child);
@@ -62,6 +65,7 @@ namespace gj{
             void replace_parents(std::string filename, vector<string> parents);
             void replace_parents(shared_ptr<hierarcy_tree_node> child, vector<string> parents);
             shared_ptr<hierarcy_tree_node> get_or_create(std::string filename);
+            virtual ~hierarcy_tree();
     };
 
     class SimpleHierarcyTreeCollector : public clang::PPCallbacks {

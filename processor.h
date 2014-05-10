@@ -30,14 +30,21 @@
 using namespace clang;
 
 namespace gj{
+    class processor_compiler_options_holder{
+        private:
+        const char ** options;
+        int count;
+        public:
+        processor_compiler_options_holder(char ** compilerOptionsStart, char ** compilerOptionsEnd);
+        pair<const char **, const char **> getCompilerOptionsRange(const char * filename);
+        virtual ~processor_compiler_options_holder();
+    };
 
-    class processor{
+    class processor : public processor_compiler_options_holder{
         protected:
         ro_hint_base_cacher hintBaseCacher;
         const std::string cacheDir;
-        CompilerInstance compiler;
-        CompilerInvocation *Invocation;
-        void initHeaderSearchOptions();
+        void initHeaderSearchOptions(CompilerInstance & compiler);
         void rmCacheDir() const;
         void recache_dfs(hint_db_cache_manager & cacheManager, const shared_ptr<hierarcy_tree_node> & node, unordered_set<std::string> & visited, bool throw_on_cycle = false);
         static vector<std::string> loadPrjFiles(const std::string & prjFilesPath);
@@ -45,7 +52,6 @@ namespace gj{
         static constexpr const char * const DEFAULT_PROJECT_FILES_JSON_PATH = "gj_prj.json";
         vector<std::string> projectFiles;
         processor(char ** compilerOptionsStart, char ** compilerOptionsEnd, const std::string & cacheDir = DEFAULT_CACHE_DIR, const std::string & prjFilesPath = DEFAULT_PROJECT_FILES_JSON_PATH);
-        virtual ~processor();
         pair<global_hint_base_t, vector<string> > collect(const std::string & filename);
         void recache(const std::string & filename);
         vector<shared_ptr<hint_t> > resolve_position(const std::string & filename, pos_t pos);
