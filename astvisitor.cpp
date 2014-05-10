@@ -114,31 +114,31 @@ void GJRecursiveASTVisitor::addHint(SourceLocation refBegin, SourceLocation refE
 bool GJRecursiveASTVisitor::VisitTypeLoc(TypeLoc tl){
     addHint(tl);
 
-    tl.getType().dump((std::string("Some typeLoc's type:")
-                + tl.getTypePtr()->getTypeClassName()).c_str());
-    llvm::errs() << "   ";
-    if(const AutoType* type = dyn_cast<AutoType>(tl.getType().getTypePtr())){
-        llvm::errs() << (type->isDeduced()?"true":"false") << " ";
-    }
-    tl.getSourceRange().getBegin().dump(sourceManager);
-    llvm::errs() << " ";
-    tl.getSourceRange().getEnd().dump(sourceManager);
-    llvm::errs() << "\n";
+    //tl.getType().dump((std::string("Some typeLoc's type:")
+                //+ tl.getTypePtr()->getTypeClassName()).c_str());
+    //llvm::errs() << "   ";
+    //if(const AutoType* type = dyn_cast<AutoType>(tl.getType().getTypePtr())){
+        //llvm::errs() << (type->isDeduced()?"true":"false") << " ";
+    //}
+    //tl.getSourceRange().getBegin().dump(sourceManager);
+    //llvm::errs() << " ";
+    //tl.getSourceRange().getEnd().dump(sourceManager);
+    //llvm::errs() << "\n";
     return true;
 }
 
 bool GJRecursiveASTVisitor::VisitStmt(Stmt * stmt){
-    stmt->dumpColor();
+    //stmt->dumpColor();
     return true;
 }
 
 bool GJRecursiveASTVisitor::VisitDecl(Decl * decl){
-    decl->dumpColor();
+    //decl->dumpColor();
     return true;
 }
 
 bool GJRecursiveASTVisitor::VisitType(Type * type){
-    type->dump();
+    //type->dump();
     return true;
 }
 

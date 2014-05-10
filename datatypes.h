@@ -1,6 +1,8 @@
 #ifndef GJ_DATATYPES
 #define GJ_DATATYPES
 
+#include <unordered_map>
+#include <memory>
 #include <set>
 #include <vector>
 #include <utility>
@@ -92,18 +94,17 @@ namespace gj{
 
     //@TODO At the moment hint_base implementation is very-very simple, in the future
     //it's better to implement interval tree
-    class hint_base_t : public set<pair<pos_t, const hint_t*> >, public printable{
+    class hint_base_t : public set<pair<pos_t, shared_ptr<hint_t> > >, public printable{
         public:
-            typedef pair<pos_t, const hint_t*> element_t;
+            void add(const shared_ptr<hint_t> & ptr);
             void add(const hint_t & _hint);
             void add(const hint_base_t & hint_base);
-            vector<const hint_t*> resolve_position(pos_t pos) const;
-            vector<const hint_t*> resolve_position(int line, int index) const;
-            ~hint_base_t();
+            vector<shared_ptr<hint_t> > resolve_position(pos_t pos) const;
+            vector<shared_ptr<hint_t> > resolve_position(int line, int index) const;
             ostream& printTo (ostream& os) const;
     };
 
-    class global_hint_base_t : public map<string, hint_base_t>, public printable{
+    class global_hint_base_t : public unordered_map<string, hint_base_t>, public printable{
         const std::string scopeFileName;
         public:
             global_hint_base_t() {}

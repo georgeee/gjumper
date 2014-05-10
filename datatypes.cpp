@@ -1,3 +1,5 @@
+#include <unordered_map>
+#include <memory>
 #include <set>
 #include <vector>
 #include <utility>
@@ -103,14 +105,16 @@ const bool gj::hint_t::operator< (const hint_t & hint) const{
     if(range.end != hint.range.end) return range.end < hint.range.end;
     return pos < hint.pos;
 }
-void gj::hint_base_t::add(const hint_t & _hint){
-    const hint_t * hint = new hint_t(_hint);
-    insert(make_pair(hint->range.start, hint));
+void gj::hint_base_t::add(const shared_ptr<hint_t> & ptr){
+    insert(make_pair(ptr->range.start, ptr));
+}
+void gj::hint_base_t::add(const hint_t & hint){
+    add(make_shared<hint_t>(hint));
 }
 
-vector<const hint_t*> gj::hint_base_t::resolve_position(pos_t pos) const{
-    vector<const hint_t*> res;
-    for(const_iterator it = lower_bound(make_pair(pos,(hint_t*) NULL)); it != end(); ++it){
+vector<shared_ptr<hint_t> > gj::hint_base_t::resolve_position(pos_t pos) const{
+    vector<shared_ptr<hint_t> > res;
+    for(const_iterator it = lower_bound(make_pair(pos, shared_ptr<hint_t>())); it != end(); ++it){
         if(it->second->range.start <= pos && pos <= it->second->range.end){
             res.push_back(it->second);
         }
@@ -118,14 +122,8 @@ vector<const hint_t*> gj::hint_base_t::resolve_position(pos_t pos) const{
     return res;
 }
 
-vector<const hint_t*> gj::hint_base_t::resolve_position(int line, int index) const{
+vector<shared_ptr<hint_t> > gj::hint_base_t::resolve_position(int line, int index) const{
     return resolve_position(pos_t(line, index));
-}
-
-gj::hint_base_t::~hint_base_t(){
-    for(iterator it = set::begin(); it != set::end(); ++it){
-        delete it->second;
-    }
 }
 
 ostream& gj::hint_base_t::printTo (ostream& os) const{
@@ -157,5 +155,5 @@ void gj::global_hint_base_t::add(const string & file, const hint_t & hint){
     base.add(hint);
 }
 void gj::hint_base_t::add(const hint_base_t & hint_base){
-    for(auto pr : hint_base) add(*pr.second);
+    for(auto pr : hint_base) add(pr.second);
 }

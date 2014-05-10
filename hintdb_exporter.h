@@ -69,20 +69,41 @@ class hintdb_json_importer : public hintdb_importer{
 
 class import_exception : public exception{};
 
-}
 
 class double_converted_json_hint_base {
-    hint_base_t * hint_base;
-    Json::Value * json;
+    hint_base_t * hint_base_ptr;
+    Json::Value * json_ptr;
+    void copy_from(const double_converted_json_hint_base & base);
+    void copy_from(double_converted_json_hint_base && base);
     public:
-        double_converted_json_hint_base() : hint_base(NULL), json(NULL) {}
-        double_converted_json_hint_base(hint_base_t hint_base);
-        double_converted_json_hint_base(Json::Value json);
+        double_converted_json_hint_base() : hint_base_ptr(new hint_base_t()), json_ptr(NULL) {}
+
+        double_converted_json_hint_base(const hint_base_t & hint_base)
+            : hint_base_ptr(new hint_base_t(hint_base)), json_ptr(NULL) {}
+        double_converted_json_hint_base(const Json::Value & json)
+            : hint_base_ptr(NULL), json_ptr(new Json::Value(json)) {}
+
+        double_converted_json_hint_base(double_converted_json_hint_base && base){
+            copy_from(std::forward<double_converted_json_hint_base&&>(base));
+        }
+        double_converted_json_hint_base(const double_converted_json_hint_base & base){
+            copy_from(base);
+        }
+
+        double_converted_json_hint_base& operator=(const double_converted_json_hint_base & base){
+            copy_from(base);
+            return *this;
+        }
+        double_converted_json_hint_base& operator=(double_converted_json_hint_base && base){
+            copy_from(std::forward<double_converted_json_hint_base &&>(base));
+            return *this;
+        }
+
         Json::Value* get_json_ptr(){
-            return json;
+            return json_ptr;
         }
         hint_base_t* get_hint_base_ptr(){
-            return hint_base;
+            return hint_base_ptr;
         }
         hint_base_t & get_hint_base(){
             ensure_hint_base_not_null();
@@ -97,6 +118,7 @@ class double_converted_json_hint_base {
         void ensure_json_not_null();
         void ensure_hint_base_not_null();
         virtual ~double_converted_json_hint_base();
+        class empty_base_exception : public std::exception {};
 };
 
 class splitted_json_hint_base{
@@ -108,14 +130,19 @@ class splitted_json_hint_base{
     splitted_json_hint_base(hint_base_t hint_base, std::string filename);
     splitted_json_hint_base(hint_base_t hint_base);
     splitted_json_hint_base(Json::Value json);
-    splitted_json_hint_base(){}
-    void add_foreign_refs(std::string filename, double_converted_json_hint_base hint_base);
-    void replace_foreign_refs(std::string filename, double_converted_json_hint_base hint_base);
-    void clear_foreign_refs(std::string filename);
+    //splitted_json_hint_base(){}
+    void add_foreign_refs(const std::string & filename, double_converted_json_hint_base & dc_hint_base);
+    void add_foreign_refs(const std::string & filename, const hint_base_t & hint_base);
+    void replace_foreign_refs(const std::string & filename, const double_converted_json_hint_base & dc_hint_base);
+    void clear_foreign_refs(const std::string & filename);
     double_converted_json_hint_base & get_rest();
-    void set_rest(double_converted_json_hint_base hint_base);
+    template<typename Base>
+    void set_rest(Base&& dc_hint_base){
+        rest = std::forward<Base>(dc_hint_base);
+    }
     Json::Value as_json();
     hint_base_t as_hint_base();
 };
 
+}
 #endif

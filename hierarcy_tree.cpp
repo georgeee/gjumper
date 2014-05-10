@@ -21,31 +21,25 @@ using clang::SourceManager;
 using namespace gj;
 
 void gj::hierarcy_tree::add_edge(shared_ptr<hierarcy_tree_node> parent, shared_ptr<hierarcy_tree_node> child){
-    parent->parents.insert(make_pair(child->filename, child));
-    child->children.insert(make_pair(parent->filename, parent));
+    parent->children.insert(make_pair(child->filename, child));
+    child->parents.insert(make_pair(parent->filename, parent));
 }
 void gj::hierarcy_tree::add_edge(string parent_filename, shared_ptr<hierarcy_tree_node> child){
-    shared_ptr<hierarcy_tree_node> parent;
-    auto parent_iter = find(parent_filename);
-    if(parent_iter == end()) (*this)[parent_filename] = (parent = std::make_shared<hierarcy_tree_node>(parent_filename));
-    else parent = parent_iter->second;
-    add_edge(parent, child);
+    add_edge(get_or_create(parent_filename), child);
 }
 void gj::hierarcy_tree::add_edge(string parent_filename, string child_filename){
-    shared_ptr<hierarcy_tree_node> child;
-    auto child_iter = find(child_filename);
-    if(child_iter == end()) (*this)[child_filename] = (child = std::make_shared<hierarcy_tree_node>(child_filename));
-    else child = child_iter->second;
-    add_edge(parent_filename, child);
+    add_edge(parent_filename, get_or_create(child_filename));
 }
 
 void gj::SimpleHierarcyTreeCollector::FileChanged (clang::SourceLocation file_beginning,
         FileChangeReason reason, clang::SrcMgr::CharacteristicKind file_type, clang::FileID PrevFID){
     if(reason == EnterFile){
         const SourceLocation include_loc = sourceManager.getIncludeLoc(sourceManager.getFileID(file_beginning));
-        const string child_filename = sourceManager.getPresumedLoc(file_beginning).getFilename();
-        if(file_filter != child_filename) return;
-        parentHolder.push_back(sourceManager.getPresumedLoc(include_loc).getFilename());
+        const char * includee_filename = sourceManager.getPresumedLoc(file_beginning).getFilename();
+        if(include_loc.isInvalid()) return;
+        const char * includer_filename = sourceManager.getPresumedLoc(include_loc).getFilename();
+        if(!file_filter.empty() && file_filter != includer_filename) return;
+        parentHolder.push_back(includee_filename);
     }
 }
 
@@ -53,9 +47,11 @@ void gj::HierarcyTreeCollector::FileChanged (clang::SourceLocation file_beginnin
         FileChangeReason reason, clang::SrcMgr::CharacteristicKind file_type, clang::FileID PrevFID){
     if(reason == EnterFile){
         const SourceLocation include_loc = sourceManager.getIncludeLoc(sourceManager.getFileID(file_beginning));
-        const string child_filename = sourceManager.getPresumedLoc(file_beginning).getFilename();
-        if(!file_filter.empty() && file_filter != child_filename) return;
-        tree.add_edge(sourceManager.getPresumedLoc(include_loc).getFilename(), child_filename);
+        const char * includee_filename = sourceManager.getPresumedLoc(file_beginning).getFilename();
+        if(include_loc.isInvalid()) return;
+        const char * includer_filename = sourceManager.getPresumedLoc(include_loc).getFilename();
+        if(!file_filter.empty() && file_filter != includer_filename) return;
+        tree.add_edge(includee_filename, includer_filename);
     }
 }
 
@@ -103,13 +99,15 @@ hierarcy_tree gj::hierarcy_tree::parse_from_json(Json::Value json){
     return result;
 }
 void gj::hierarcy_tree::replace_parents(shared_ptr<hierarcy_tree_node> child, vector<string> parents){
+    const string & filename = child->filename;
     for(std::pair<string, shared_ptr<hierarcy_tree_node> > pr : child->parents){
         shared_ptr<hierarcy_tree_node> parent = pr.second;
-        parent->children.erase(child->filename);
+        parent->children.erase(filename);
     }
     child->parents.clear();
-    for(string parent_filename : parents)
+    for(const string & parent_filename : parents){
         add_edge(parent_filename, child);
+    }
 }
 shared_ptr<hierarcy_tree_node> gj::hierarcy_tree::get_or_create(std::string filename){
     shared_ptr<hierarcy_tree_node> node;
