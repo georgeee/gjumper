@@ -261,3 +261,6 @@ vector<shared_ptr<hint_t> > gj::processor::resolve_position(const std::string & 
 vector<shared_ptr<hint_t> > gj::processor::resolve_position(const std::string & filename, int line, int index) {
     return resolve_position(filename, pos_t(line, index));
 }
+vector<shared_ptr<hint_t> > gj::processor::resolve_position(const std::string & filename, int line) {
+    return hint_base.resolve_position(filename, line);
+}

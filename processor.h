@@ -56,6 +56,7 @@ namespace gj{
         void recache(const std::string & filename);
         vector<shared_ptr<hint_t> > resolve_position(const std::string & filename, pos_t pos);
         vector<shared_ptr<hint_t> > resolve_position(const std::string & filename, int line, int index);
+        vector<shared_ptr<hint_t> > resolve_position(const std::string & filename, int line);
         void full_recache();
     };
 

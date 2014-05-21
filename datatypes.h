@@ -101,6 +101,7 @@ namespace gj{
             void add(const hint_base_t & hint_base);
             vector<shared_ptr<hint_t> > resolve_position(pos_t pos) const;
             vector<shared_ptr<hint_t> > resolve_position(int line, int index) const;
+            vector<shared_ptr<hint_t> > resolve_position(int line) const;
             ostream& printTo (ostream& os) const;
     };
 
