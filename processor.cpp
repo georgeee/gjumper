@@ -28,44 +28,30 @@ using namespace boost::filesystem;
 using namespace clang;
 using namespace std;
 
-gj::processor_compiler_options_holder::processor_compiler_options_holder(char ** compilerOptionsStart, char ** compilerOptionsEnd)
-    : count(compilerOptionsEnd - compilerOptionsStart), options(NULL) {
-    options = new const char*[count+1];
-    memset(options, 0, sizeof(char*)*count);
-    for(int i=0; i<count; ++i){
-        const char * src = compilerOptionsStart[i];
-        char * dest = new char[strlen(src) + 1];
-        strcpy(dest, src);
-        options[i] = dest;
-    }
-}
-pair<const char **, const char **> gj::processor_compiler_options_holder::getCompilerOptionsRange(const char * filename){
-    options[count] = filename;
-    return make_pair(options, options + count + 1);
-}
-gj::processor_compiler_options_holder::~processor_compiler_options_holder(){
-    if(options){
-        for(int i=0; i<count; ++i){
-            delete[] options[i];
-        }
-    }
-    delete[] options;
+vector<std::string> gj::readStringVector(const Json::Value & json){
+    vector<std::string> result;
+    for(auto & val : json) result.push_back(val.asString());
+    return result;
 }
 
-vector<std::string> gj::processor::loadPrjFiles(const std::string & prjFilesPath){
-    vector<std::string> result;
-    if(!prjFilesPath.empty() && exists(prjFilesPath)){
+
+gj::compileConfig::compileConfig(Json::Value json) : compileConfig(readStringVector(json[PCCJ_OPTIONS]), json[PCCJ_ISCXX].asBool()) {}
+
+unordered_map<std::string, compileConfig> gj::processor::loadPrjCompileConfig(const std::string & prjCompileConfigPath){
+    unordered_map<std::string, compileConfig> result;
+    if(!prjCompileConfigPath.empty() && exists(prjCompileConfigPath)){
         std::ifstream t;
-        t.open(prjFilesPath);
+        t.open(prjCompileConfigPath);
         Json::Value json;
         t >> json;
-        for(Json::Value & val : json)
-            result.push_back(val.asString());
+        for(auto it = json.begin(); it != json.end(); ++it){
+            result[it.key().asString()] = compileConfig(*it);
+        }
     }
     return result;
 }
 
-gj::processor::processor(char ** compilerOptionsStart, char ** compilerOptionsEnd, const std::string & cacheDir, const std::string & prjFilesPath): cacheDir(cacheDir), hintBaseCacher(cacheDir), projectFiles(loadPrjFiles(prjFilesPath)), processor_compiler_options_holder(compilerOptionsStart, compilerOptionsEnd) {}
+gj::processor::processor(const std::string & cacheDir, const std::string & prjCompileConfigPath): cacheDir(cacheDir), hintBaseCacher(cacheDir), projectCompileConfig(loadPrjCompileConfig(prjCompileConfigPath)) {}
 
 void gj::processor::initHeaderSearchOptions(CompilerInstance & compiler){
     HeaderSearchOptions &headerSearchOptions = compiler.getHeaderSearchOpts();
@@ -121,7 +107,17 @@ void gj::processor::initHeaderSearchOptions(CompilerInstance & compiler){
     // </Warning!!> -- End of Platform Specific Code
 }
 
-pair<global_hint_base_t, vector<string> >  gj::processor::collect(const std::string & fileName){
+pair<global_hint_base_t, vector<string> >  gj::processor::collect(const std::string & fileName, const compileConfig & config){
+    const vector<std::string> & compilerOptions = config.options;
+    const char ** compilerOptionsArr = new const char*[compilerOptions.size()];
+    for(int i =0; i< compilerOptions.size(); ++i){
+        compilerOptionsArr[i] = compilerOptions[i].c_str();
+    }
+    auto res = collect(fileName, compilerOptionsArr, compilerOptionsArr + compilerOptions.size(), config.isCxx);
+    delete[] compilerOptionsArr;
+    return res;
+}
+pair<global_hint_base_t, vector<string> >  gj::processor::collect(const std::string & fileName, const char ** compilerOptionsStart, const char ** compilerOptionsEnd, bool isCxx){
     global_hint_base_t hint_base(fileName);
     vector<string> parents;
 
@@ -129,11 +125,8 @@ pair<global_hint_base_t, vector<string> >  gj::processor::collect(const std::str
     CompilerInvocation * Invocation = new CompilerInvocation;
     compiler.createDiagnostics();
 
-    auto compilerOptsRange = getCompilerOptionsRange(fileName.c_str());
-
     // Create an invocation that passes any flags to preprocessor
-    CompilerInvocation::CreateFromArgs(*Invocation, compilerOptsRange.first,
-            compilerOptsRange.second, compiler.getDiagnostics());
+    CompilerInvocation::CreateFromArgs(*Invocation, compilerOptionsStart, compilerOptionsEnd, compiler.getDiagnostics());
     compiler.setInvocation(Invocation);
 
     // Set default target triple
@@ -153,7 +146,7 @@ pair<global_hint_base_t, vector<string> >  gj::processor::collect(const std::str
     langOpts.CXXExceptions = 1; 
     langOpts.RTTI = 1; 
     langOpts.Bool = 1; 
-    langOpts.CPlusPlus = 1; 
+    langOpts.CPlusPlus = isCxx; 
     Invocation->setLangDefaults(langOpts,
             clang::IK_CXX,
             clang::LangStandard::lang_cxx0x);
@@ -182,7 +175,9 @@ void gj::processor::recache_dfs(hint_db_cache_manager & cacheManager, const shar
     }
     visited.insert(node_filename);
     hierarcy_tree & hierarcy = cacheManager.retreive_hierarcy();
-    auto collectResult = collect(node_filename);
+    //@TODO add exception when in prjCompileConfigPath there is no
+    //node_filename
+    auto collectResult = collect(node_filename, projectCompileConfig[node_filename]);
     hierarcy.replace_parents(node, collectResult.second);
     const global_hint_base_t & ghint_base = collectResult.first;
     splitted_json_hint_base & node_base = cacheManager.retreive(node_filename);
@@ -244,8 +239,8 @@ void gj::processor::full_recache(){
     hint_db_cache_manager cacheManager;
     unordered_set<std::string> visited;
     hierarcy_tree & hierarcy = cacheManager.retreive_hierarcy();
-    for(const std::string & filename : projectFiles)
-        recache_dfs(cacheManager, hierarcy.get_or_create(filename), visited);
+    for(auto iter = projectCompileConfig.begin(); iter != projectCompileConfig.end(); ++iter)
+        recache_dfs(cacheManager, hierarcy.get_or_create(iter->first), visited);
     hintBaseCacher.clear();
 }
 
@@ -262,5 +257,32 @@ vector<shared_ptr<hint_t> > gj::processor::resolve_position(const std::string & 
     return resolve_position(filename, pos_t(line, index));
 }
 vector<shared_ptr<hint_t> > gj::processor::resolve_position(const std::string & filename, int line) {
-    return hint_base.resolve_position(filename, line);
+    const hint_base_t & hint_base = hintBaseCacher.retreive(filename);
+    return hint_base.resolve_position(line);
+}
+
+void gj::addToCompileConfig(bool isCxx, char ** argv, int argc, const std::string & prjCompileConfigPath){
+    vector<std::string> opts;
+    for(int i=0; i<argc; ++i) opts.push_back(argv[i]);
+    std::string filename = argv[argc - 1];
+    Json::Value json;
+    if(exists(prjCompileConfigPath)){
+        std::ifstream in;
+        in.open(prjCompileConfigPath);
+        in >> json;
+    }
+    json[filename] = compileConfig(opts, isCxx).asJson();
+    std::ofstream out;
+    out.open(prjCompileConfigPath);
+    out << json;
+}
+
+
+Json::Value gj::compileConfig::asJson(){
+    Json::Value result;
+    result[PCCJ_OPTIONS] = Json::Value();
+    result[PCCJ_ISCXX] = isCxx;
+    Json::Value & optsJson = result[PCCJ_OPTIONS];
+    for(const std::string & opt : options) optsJson.append(opt);
+    return result;
 }

@@ -48,8 +48,8 @@ namespace gj{
         const std::string cacheDir;
         ro_hint_db_cache_manager_base(const std::string & cacheDir = DEFAULT_CACHE_DIR) : cacheDir(cacheDir){}
         void mkCacheDir() const;
-        std::string getCachePath(const std::string & filename) const;
-        Json::Value loadCached(const std::string & filename) const;
+        std::string getCachePath(const std::string & filename, bool hashFilename = true) const;
+        Json::Value loadCached(const std::string & filename, bool hashFilename = true) const;
     };
     class ro_hint_db_cache_manager : public map<std::string, splitted_json_hint_base>, public ro_hint_db_cache_manager_base {
         protected:
@@ -70,7 +70,7 @@ namespace gj{
         ~ro_hint_db_cache_manager();
     };
     class hint_db_cache_manager : public ro_hint_db_cache_manager {
-        void saveCached(const std::string & filename, const Json::Value & jsonValue) const;
+        void saveCached(const std::string & filename, const Json::Value & jsonValue, bool hashFilename = true) const;
         void saveHierarcyTree(const hierarcy_tree & tree) const;
         void saveFRH(const foreign_ref_holders_t & FRH) const;
         public:

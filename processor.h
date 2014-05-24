@@ -30,29 +30,34 @@
 using namespace clang;
 
 namespace gj{
-    class processor_compiler_options_holder{
-        private:
-        const char ** options;
-        int count;
-        public:
-        processor_compiler_options_holder(char ** compilerOptionsStart, char ** compilerOptionsEnd);
-        pair<const char **, const char **> getCompilerOptionsRange(const char * filename);
-        virtual ~processor_compiler_options_holder();
-    };
+    constexpr const char * const DEFAULT_PROJECT_COMPILE_CONFIG_JSON_PATH = "gj_compile.json";
 
-    class processor : public processor_compiler_options_holder{
+    vector<std::string> readStringVector(const Json::Value & json);
+    void addToCompileConfig(bool isCxx, char ** argv, int argc, const std::string & prjCompileConfigPath = DEFAULT_PROJECT_COMPILE_CONFIG_JSON_PATH);
+
+    struct compileConfig{
+        static constexpr const char * const PCCJ_OPTIONS = "opts";
+        static constexpr const char * const PCCJ_ISCXX = "cxx";
+        vector<std::string> options;
+        bool isCxx;
+        compileConfig(){}
+        compileConfig(vector<std::string> options, bool isCxx) : options(options), isCxx(isCxx) {}
+        compileConfig(Json::Value json);
+        Json::Value asJson();
+    };
+    class processor {
         protected:
         ro_hint_base_cacher hintBaseCacher;
         const std::string cacheDir;
         void initHeaderSearchOptions(CompilerInstance & compiler);
         void rmCacheDir() const;
         void recache_dfs(hint_db_cache_manager & cacheManager, const shared_ptr<hierarcy_tree_node> & node, unordered_set<std::string> & visited, bool throw_on_cycle = false);
-        static vector<std::string> loadPrjFiles(const std::string & prjFilesPath);
+        static unordered_map<std::string, compileConfig> loadPrjCompileConfig(const std::string & prjCompileConfigPath);
         public:
-        static constexpr const char * const DEFAULT_PROJECT_FILES_JSON_PATH = "gj_prj.json";
-        vector<std::string> projectFiles;
-        processor(char ** compilerOptionsStart, char ** compilerOptionsEnd, const std::string & cacheDir = DEFAULT_CACHE_DIR, const std::string & prjFilesPath = DEFAULT_PROJECT_FILES_JSON_PATH);
-        pair<global_hint_base_t, vector<string> > collect(const std::string & filename);
+        unordered_map<std::string, compileConfig> projectCompileConfig;
+        processor(const std::string & cacheDir = DEFAULT_CACHE_DIR, const std::string & prjCompileConfigPath = DEFAULT_PROJECT_COMPILE_CONFIG_JSON_PATH);
+        pair<global_hint_base_t, vector<string> > collect(const std::string & filename, const compileConfig & config);
+        pair<global_hint_base_t, vector<string> > collect(const std::string & filename, const char ** compilerOptionsStart, const char ** compilerOptionsEnd, bool isCxx = true);
         void recache(const std::string & filename);
         vector<shared_ptr<hint_t> > resolve_position(const std::string & filename, pos_t pos);
         vector<shared_ptr<hint_t> > resolve_position(const std::string & filename, int line, int index);

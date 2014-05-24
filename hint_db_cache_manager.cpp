@@ -17,16 +17,16 @@ using namespace std;
 
 
 
-void gj::hint_db_cache_manager::saveCached(const std::string & filename, const Json::Value & jsonValue) const {
-    const std::string cachePath = getCachePath(filename);
+void gj::hint_db_cache_manager::saveCached(const std::string & filename, const Json::Value & jsonValue, bool hashFilename) const {
+    const std::string cachePath = getCachePath(filename, hashFilename);
     std::ofstream t;
     t.open(cachePath);
     t << jsonValue;
 }
 
 
-Json::Value gj::ro_hint_db_cache_manager_base::loadCached(const std::string & filename) const {
-    const std::string cachePath = getCachePath(filename);
+Json::Value gj::ro_hint_db_cache_manager_base::loadCached(const std::string & filename, bool hashFilename) const {
+    const std::string cachePath = getCachePath(filename, hashFilename);
     if(exists(cachePath)){
         std::ifstream t;
         t.open(cachePath);
@@ -38,13 +38,13 @@ Json::Value gj::ro_hint_db_cache_manager_base::loadCached(const std::string & fi
 }
 
 
-std::string gj::ro_hint_db_cache_manager_base::getCachePath(const std::string & filename) const {
+std::string gj::ro_hint_db_cache_manager_base::getCachePath(const std::string & filename, bool hashFilename) const {
     mkCacheDir();
-    return cacheDir + PATH_SEPARATOR + std::to_string(std::hash<std::string>()(filename)) + CACHE_EXT;
+    return cacheDir + PATH_SEPARATOR + (hashFilename ? std::to_string(std::hash<std::string>()(filename)) + CACHE_EXT : filename);
 }
 
 void gj::hint_db_cache_manager::saveHierarcyTree(const hierarcy_tree & tree) const {
-    saveCached(HIERARCY_TREE_CACHE_FILENAME, tree.as_json());
+    saveCached(HIERARCY_TREE_CACHE_FILENAME, tree.as_json(), false);
 }
 
 bool gj::ro_hint_db_cache_manager::is_cached(const std::string & filename) const {
@@ -59,15 +59,15 @@ splitted_json_hint_base & gj::ro_hint_db_cache_manager::retreive_impl(const std:
 
 foreign_ref_holders_t & gj::ro_hint_db_cache_manager::retreive_FRH_impl(){
     if(cachedFRH) return *cachedFRH;
-    return *(cachedFRH = new foreign_ref_holders_t(foreign_ref_holders_t::parse_from_json(loadCached(FRH_CACHE_FILENAME))));
+    return *(cachedFRH = new foreign_ref_holders_t(foreign_ref_holders_t::parse_from_json(loadCached(FRH_CACHE_FILENAME, false))));
 }
 hierarcy_tree & gj::ro_hint_db_cache_manager::retreive_hierarcy_impl(){
     if(cachedTree) return *cachedTree;
-    return *(cachedTree = new hierarcy_tree(hierarcy_tree::parse_from_json(loadCached(HIERARCY_TREE_CACHE_FILENAME))));
+    return *(cachedTree = new hierarcy_tree(hierarcy_tree::parse_from_json(loadCached(HIERARCY_TREE_CACHE_FILENAME, false))));
 }
 
 void gj::hint_db_cache_manager::saveFRH(const foreign_ref_holders_t & frh) const {
-    saveCached(FRH_CACHE_FILENAME, frh.as_json());
+    saveCached(FRH_CACHE_FILENAME, frh.as_json(), false);
 }
 
 const splitted_json_hint_base & gj::ro_hint_db_cache_manager::retreive_ro(const std::string & filename){
