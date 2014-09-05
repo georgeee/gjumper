@@ -125,11 +125,11 @@ vector<shared_ptr<hint_t> > gj::hint_base_t::resolve_position(pos_t pos) const{
 vector<shared_ptr<hint_t> > gj::hint_base_t::resolve_position(int line) const{
     vector<shared_ptr<hint_t> > res;
     pos_t l(line, 0);
-    pos_t r(line + 1, 0);
+    pos_t r(line, 1<<30);
     for(const_iterator it = lower_bound(make_pair(l, shared_ptr<hint_t>())); it != end(); ++it){
-        pos_t  _l = it->second->range.start;
+        pos_t _l = it->second->range.start;
         pos_t _r = it->second->range.end;
-        if((_l <= l && _r <= r) || (l <= _l && r <= _r)){
+        if((_l <= l && l <= _r) || (l <= _l && _l <= r)){
             res.push_back(it->second);
         }
     }

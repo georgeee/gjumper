@@ -21,8 +21,8 @@ bool GJRecursiveASTVisitor::VisitClassTemplateSpecializationDecl(ClassTemplateSp
 bool GJRecursiveASTVisitor::VisitVarDecl(VarDecl * decl){
     const Type * type = decl->getType().getTypePtr();
     auto addVarDeclHint = [type, decl, this] (SourceRange typeDeclRange, std::string typeDeclDesc, const Type * varType) {
-        addHint(decl->getSourceRange(), typeDeclRange,
-                "{type " + QualType::getAsString(varType, Qualifiers()) + "} " + decl->getQualifiedNameAsString(), typeDeclDesc);
+        addHint(decl->getSourceRange(), typeDeclRange, typeDeclDesc,
+                "{type " + QualType::getAsString(varType, Qualifiers()) + "} " + decl->getQualifiedNameAsString());
     };
     if(const AutoType* autoType = dyn_cast<AutoType>(type)){
         TypeLoc tl = decl->getTypeSourceInfo()->getTypeLoc();

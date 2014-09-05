@@ -2,7 +2,10 @@
 *.un~
 *.swp
 *.swo
+*.bk
+*.bak
 dump.sh
-gjumper
-a.out
-test
+test_env
+.gjumper-cache
+gj_compile.json
+session.vim
