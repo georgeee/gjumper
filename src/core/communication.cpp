@@ -6,6 +6,8 @@
 #include "processor.h"
 #include "hintdb_exporter.h"
 #include "jsoncpp/json/json.h"
+#include <boost/filesystem.hpp>
+using namespace boost::filesystem;
 
 Json::Value gj::communication_relay::processRequest(const Json::Value & json){
     try{
@@ -82,8 +84,8 @@ Json::Value gj::communication_relay::processResolveRequest(const Json::Value & j
         : processor.resolve_position(filename, line, index);
     Json::Value response = createResponseForOk();
     response[RESP_DATA] = Json::Value();
-    for(shared_ptr<hint_t> & pos : positions){
-        response[RESP_DATA].append(gj::hintdb_json_exporter::getJSONValue(*pos));
+    for(shared_ptr<hint_t> & hint : positions){
+        response[RESP_DATA].append(gj::hintdb_json_exporter::getJSONValue(*hint, processor.baseDir));
     }
     return response;
 }
@@ -91,7 +93,7 @@ Json::Value gj::communication_relay::processResolveRequest(const Json::Value & j
 Json::Value gj::communication_relay::createResolveRequest(const char * filename, int line, int index){
     Json::Value request;
     request[REQ_TYPE] = REQ_TYPE_RESOLVE;
-    request[REQ_FILENAME] = filename;
+    request[REQ_FILENAME] = canonical(filename).string();
     if(index == -1){
         request[REQ_POS] = line;
     }else{
@@ -111,6 +113,6 @@ Json::Value gj::communication_relay::createFullRecacheRequest(){
 Json::Value gj::communication_relay::createRecacheRequest(const char * filename){
     Json::Value request;
     request[REQ_TYPE] = REQ_TYPE_RECACHE;
-    request[REQ_FILENAME] = filename;
+    request[REQ_FILENAME] = canonical(filename).string();
     return request;
 }

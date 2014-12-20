@@ -57,7 +57,9 @@ function! gj#RecacheFile(...)
 endfunction
 
 function! gj#JumpToFile(file, line, col)
-    execute "o " . a:file
+    if fnamemodify(a:file, ":p") != expand("%:p")
+        execute "sp " . a:file
+    endif
     execute "norm! " . a:line . "G" . a:col . "|"
 endfunction
 
@@ -70,12 +72,17 @@ function! gj#ShowResolveList(hint_list)
     let i = 0
     let s:hint_list = a:hint_list
     for hint in a:hint_list
-        let str = hint[2] . " -> " . hint[3]
+        let str = hint[3]
                     \ . " (" . hint[1][0]
                     \ . ":" . hint[1][1]
                     \ . ":" . hint[1][2] . ")"
         if hint[5] != "reg"
             let str = str . " [" . hint[5] . "]"
+        endif
+        if hint[4] == "decl"
+            let str = "(declaration) " . str
+        else
+            let str = "(usage in) " . str
         endif
         call add(choices, [str, i]) 
         let i = i + 1

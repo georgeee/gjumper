@@ -12,6 +12,7 @@
 using namespace std;
 
 namespace gj{
+    //Type of hint's destination
     enum hint_type{
         REF_HT, DECL_HT
     };

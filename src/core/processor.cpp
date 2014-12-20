@@ -3,6 +3,7 @@
 #include "datatypes.h"
 #include "hintdb_exporter.h"
 #include "hierarcy_tree.h"
+#include "fs_utils.h"
 
 #include "jsoncpp/json/json.h"
 
@@ -17,12 +18,29 @@
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/Parse/ParseAST.h"
+#include "clang/Frontend/CompilerInvocation.h"
+#include "clang/Basic/FileManager.h"
+#include "clang/Basic/Version.h"
+#include "clang/Driver/DriverDiagnostic.h"
+#include "clang/Driver/Options.h"
+#include "clang/Driver/Option.h"
+#include "clang/Driver/ArgList.h"
+#include "clang/Driver/Arg.h"
+#include "clang/Driver/OptTable.h"
+#include "clang/Driver/Util.h"
+#include "llvm/Option/OptTable.h"
+#include "llvm/Option/Option.h"
+#include "llvm/ADT/Triple.h"
+#include "llvm/Option/Arg.h"
+#include "llvm/Option/ArgList.h"
 
 #include <fstream>
 #include <memory>
 #include <iostream>
 #include <functional>
 #include <boost/filesystem.hpp>
+#include <cstdio>
+
 using namespace boost::filesystem;
 
 using namespace clang;
@@ -51,7 +69,18 @@ unordered_map<std::string, compileConfig> gj::processor::loadPrjCompileConfig(co
     return result;
 }
 
-gj::processor::processor(const std::string & cacheDir, const std::string & prjCompileConfigPath): cacheDir(cacheDir), hintBaseCacher(cacheDir), projectCompileConfig(loadPrjCompileConfig(prjCompileConfigPath)) {}
+static std::string resolve_base_dir(){
+    path cur = current_path();
+    while (exists(cur)){
+        if(exists(path(cur) /= PROJECT_COMPILE_CONFIG_NAME)) return cur.string();
+        cur = cur.parent_path();
+    }
+    throw std::runtime_error("couldn't find base dir");
+}
+
+gj::processor::processor() : processor(resolve_base_dir()) {}
+gj::processor::processor(const std::string & baseDir) : processor(baseDir, baseDir + '/' + CACHE_DIR_NAME, baseDir + '/' + PROJECT_COMPILE_CONFIG_NAME) {}
+gj::processor::processor(const std::string & baseDir, const std::string & cacheDir, const std::string & prjCompileConfigPath): baseDir(baseDir), cacheDir(cacheDir), hintBaseCacher(baseDir, cacheDir), projectCompileConfig(loadPrjCompileConfig(prjCompileConfigPath)) {}
 
 void gj::processor::initHeaderSearchOptions(CompilerInstance & compiler){
     HeaderSearchOptions &headerSearchOptions = compiler.getHeaderSearchOpts();
@@ -109,12 +138,11 @@ void gj::processor::initHeaderSearchOptions(CompilerInstance & compiler){
 
 pair<global_hint_base_t, vector<string> >  gj::processor::collect(const std::string & fileName, const compileConfig & config){
     const vector<std::string> & compilerOptions = config.options;
-    const char ** compilerOptionsArr = new const char*[compilerOptions.size()];
-    for(int i =0; i< compilerOptions.size(); ++i){
+    std::unique_ptr<const char * []> compilerOptionsArr (new const char*[compilerOptions.size()]);
+    for(size_t i =0; i< compilerOptions.size(); ++i){
         compilerOptionsArr[i] = compilerOptions[i].c_str();
     }
-    auto res = collect(fileName, compilerOptionsArr, compilerOptionsArr + compilerOptions.size(), config.isCxx);
-    delete[] compilerOptionsArr;
+    auto res = collect(fileName, compilerOptionsArr.get(), compilerOptionsArr.get() + compilerOptions.size(), config.isCxx);
     return res;
 }
 pair<global_hint_base_t, vector<string> >  gj::processor::collect(const std::string & fileName, const char ** compilerOptionsStart, const char ** compilerOptionsEnd, bool isCxx){
@@ -213,7 +241,7 @@ void gj::processor::recache_dfs(hint_db_cache_manager & cacheManager, const shar
 }
 
 void gj::processor::recache(const std::string & filename){
-    hint_db_cache_manager cacheManager;
+    hint_db_cache_manager cacheManager(baseDir, cacheDir);
     unordered_set<std::string> visited;
     hierarcy_tree & hierarcy = cacheManager.retreive_hierarcy();
     try{
@@ -236,7 +264,7 @@ bool gj::GASTConsumer::HandleTopLevelDecl(DeclGroupRef d){
 
 void gj::processor::full_recache(){
     rmCacheDir();
-    hint_db_cache_manager cacheManager;
+    hint_db_cache_manager cacheManager(baseDir, cacheDir);
     unordered_set<std::string> visited;
     hierarcy_tree & hierarcy = cacheManager.retreive_hierarcy();
     for(auto iter = projectCompileConfig.begin(); iter != projectCompileConfig.end(); ++iter)
@@ -261,24 +289,47 @@ vector<shared_ptr<hint_t> > gj::processor::resolve_position(const std::string & 
     return hint_base.resolve_position(line);
 }
 
-void gj::addToCompileConfig(bool isCxx, char ** argv, int argc, const std::string & prjCompileConfigPath){
+void gj::addToCompileConfig(bool isCxx, char ** argv, int argc, const std::string & baseDir){
+    path prjCompileConfigPath = path(baseDir) /= PROJECT_COMPILE_CONFIG_NAME;
     vector<std::string> opts;
     for(int i=0; i<argc; ++i) opts.push_back(argv[i]);
-    std::string filename = argv[argc - 1];
     Json::Value json;
     if(exists(prjCompileConfigPath)){
         std::ifstream in;
-        in.open(prjCompileConfigPath);
+        in.open(prjCompileConfigPath.string());
         in >> json;
     }
-    json[filename] = compileConfig(opts, isCxx).asJson();
+    vector<std::string> files = getFilesFromArgs(argv, argc);
+    path baseDirPath = canonical(baseDir);
+    for(std::string filename : files){
+        try{
+            filename = relativize(baseDirPath, filename).string();
+            std::cerr << filename << "\n";
+            json[filename] = compileConfig(opts, isCxx).asJson();
+        }catch(filesystem_error er){
+        }
+    }
     std::ofstream out;
-    out.open(prjCompileConfigPath);
+    out.open(prjCompileConfigPath.string());
     out << json;
 }
 
+using namespace clang::driver;
+using namespace clang::driver::options;
 
-Json::Value gj::compileConfig::asJson(){
+
+vector<std::string> gj::getFilesFromArgs(char ** argv, int argc){
+    std::unique_ptr<OptTable> Opts(createDriverOptTable());
+    unsigned MissingArgIndex, MissingArgCount;
+    std::unique_ptr<InputArgList> Args(Opts->ParseArgs(argv, argv + argc, MissingArgIndex, MissingArgCount));
+    vector<std::string> result;
+    for (arg_iterator it = Args->filtered_begin(OPT_INPUT), ie = Args->filtered_end(); it != ie; ++it) {
+        result.push_back((*it)->getAsString(*Args));
+    }
+    return result;
+}
+
+Json::Value gj::compileConfig::asJson() const {
     Json::Value result;
     result[PCCJ_OPTIONS] = Json::Value();
     result[PCCJ_ISCXX] = isCxx;

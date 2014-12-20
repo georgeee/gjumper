@@ -10,6 +10,7 @@ add_library(gj_core astvisitor.cpp
                     processor.cpp
                     hierarcy_tree.cpp
                     hint_db_cache_manager.cpp
+                    fs_utils.cpp
                     communication.cpp)
 
 find_package(Boost COMPONENTS filesystem system) 

@@ -43,10 +43,10 @@ struct hintdb_json_values{
 
 class hintdb_json_exporter : public hintdb_exporter{
     public:
-    static Json::Value getJSONValue(const hint_base_t & hints);
-    static Json::Value getJSONValue(const hint_t & hint);
+    static Json::Value getJSONValue(const hint_base_t & hints, const std::string & baseDir = "");
+    static Json::Value getJSONValue(const hint_t & hint, const std::string & baseDir = "");
     static Json::Value getJSONValue(const pos_t & pos);
-    static Json::Value getJSONValue(const abs_pos_t & pos);
+    static Json::Value getJSONValue(const abs_pos_t & pos, const std::string & baseDir = "");
     static Json::Value getJSONValue(hint_type type);
     static Json::Value getJSONValue(const hint_target_type & target_type);
     static Json::Value getJSONValue(const range_t & range);

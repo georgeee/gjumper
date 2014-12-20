@@ -10,6 +10,7 @@
 #include <iostream>
 #include <functional>
 #include <boost/filesystem.hpp>
+#include "fs_utils.h"
 using namespace boost::filesystem;
 
 using namespace clang;
@@ -26,21 +27,22 @@ void gj::hint_db_cache_manager::saveCached(const std::string & filename, const J
 
 
 Json::Value gj::ro_hint_db_cache_manager_base::loadCached(const std::string & filename, bool hashFilename) const {
-    const std::string cachePath = getCachePath(filename, hashFilename);
-    if(exists(cachePath)){
-        std::ifstream t;
-        t.open(cachePath);
-        Json::Value json;
-        t >> json;
-        return json;
-    }
-    return Json::Value();
+    std::string cachePath = getCachePath(filename, hashFilename);
+    if(!exists(cachePath))
+        cachePath = getCachePath(canonical(filename).string(), hashFilename);
+    if(!exists(cachePath))
+        cachePath = getCachePath(relativize(baseDir, filename).string(), hashFilename);
+    if(!exists(cachePath)) return Json::Value();
+    std::ifstream t;
+    t.open(cachePath);
+    Json::Value json;
+    t >> json;
+    return json;
 }
-
 
 std::string gj::ro_hint_db_cache_manager_base::getCachePath(const std::string & filename, bool hashFilename) const {
     mkCacheDir();
-    return cacheDir + PATH_SEPARATOR + (hashFilename ? std::to_string(std::hash<std::string>()(filename)) + CACHE_EXT : filename);
+    return (path(cacheDir) /= (hashFilename ? std::to_string(std::hash<std::string>()(filename)) + CACHE_EXT : filename)).string();
 }
 
 void gj::hint_db_cache_manager::saveHierarcyTree(const hierarcy_tree & tree) const {

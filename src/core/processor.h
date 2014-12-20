@@ -30,10 +30,12 @@
 using namespace clang;
 
 namespace gj{
-    constexpr const char * const DEFAULT_PROJECT_COMPILE_CONFIG_JSON_PATH = "gj_compile.json";
+    constexpr const char * const PROJECT_COMPILE_CONFIG_NAME = ".gj_compile.json";
+    constexpr const char * const CACHE_DIR_NAME = ".gjumper-cache";
 
     vector<std::string> readStringVector(const Json::Value & json);
-    void addToCompileConfig(bool isCxx, char ** argv, int argc, const std::string & prjCompileConfigPath = DEFAULT_PROJECT_COMPILE_CONFIG_JSON_PATH);
+    void addToCompileConfig(bool isCxx, char ** argv, int argc, const std::string & baseDir = ".");
+    vector<std::string> getFilesFromArgs(char ** argv, int argc);
 
     struct compileConfig{
         static constexpr const char * const PCCJ_OPTIONS = "opts";
@@ -43,19 +45,22 @@ namespace gj{
         compileConfig(){}
         compileConfig(vector<std::string> options, bool isCxx) : options(options), isCxx(isCxx) {}
         compileConfig(Json::Value json);
-        Json::Value asJson();
+        Json::Value asJson() const;
     };
     class processor {
+        processor(const std::string & baseDir, const std::string & cacheDir, const std::string & prjCompileConfigPath);
         protected:
         ro_hint_base_cacher hintBaseCacher;
-        const std::string cacheDir;
         void initHeaderSearchOptions(CompilerInstance & compiler);
         void rmCacheDir() const;
         void recache_dfs(hint_db_cache_manager & cacheManager, const shared_ptr<hierarcy_tree_node> & node, unordered_set<std::string> & visited, bool throw_on_cycle = false);
         static unordered_map<std::string, compileConfig> loadPrjCompileConfig(const std::string & prjCompileConfigPath);
         public:
+        const std::string baseDir;
+        const std::string cacheDir;
         unordered_map<std::string, compileConfig> projectCompileConfig;
-        processor(const std::string & cacheDir = DEFAULT_CACHE_DIR, const std::string & prjCompileConfigPath = DEFAULT_PROJECT_COMPILE_CONFIG_JSON_PATH);
+        processor();
+        processor(const std::string & baseDir);
         pair<global_hint_base_t, vector<string> > collect(const std::string & filename, const compileConfig & config);
         pair<global_hint_base_t, vector<string> > collect(const std::string & filename, const char ** compilerOptionsStart, const char ** compilerOptionsEnd, bool isCxx = true);
         void recache(const std::string & filename);

@@ -31,9 +31,6 @@ using namespace clang;
 
 namespace gj{
 
-    const std::string PATH_SEPARATOR = "/";
-    static constexpr const char * const DEFAULT_CACHE_DIR = ".gjumper-cache";
-
     class recache_exception : public std::exception {};
 
     class foreign_ref_holders_t : public std::unordered_map<std::string, std::unordered_set<std::string> >{
@@ -45,8 +42,9 @@ namespace gj{
     class ro_hint_db_cache_manager_base {
         public:
         static constexpr const char * const CACHE_EXT = ".json";
+        const std::string baseDir;
         const std::string cacheDir;
-        ro_hint_db_cache_manager_base(const std::string & cacheDir = DEFAULT_CACHE_DIR) : cacheDir(cacheDir){}
+        ro_hint_db_cache_manager_base(const std::string & baseDir, const std::string & cacheDir) : baseDir(baseDir), cacheDir(cacheDir) {}
         void mkCacheDir() const;
         std::string getCachePath(const std::string & filename, bool hashFilename = true) const;
         Json::Value loadCached(const std::string & filename, bool hashFilename = true) const;
@@ -61,7 +59,7 @@ namespace gj{
         hierarcy_tree & retreive_hierarcy_impl();
         foreign_ref_holders_t & retreive_FRH_impl();
         public:
-        ro_hint_db_cache_manager(const std::string & cacheDir = DEFAULT_CACHE_DIR) : ro_hint_db_cache_manager_base(cacheDir), cachedTree(NULL), cachedFRH(NULL) {}
+        ro_hint_db_cache_manager(const std::string & baseDir, const std::string & cacheDir) : ro_hint_db_cache_manager_base(baseDir, cacheDir), cachedTree(NULL), cachedFRH(NULL) {}
         bool is_cached(const std::string & filename) const;
         const splitted_json_hint_base & retreive_ro(const std::string & filename);
         const hierarcy_tree & retreive_hierarcy_ro();
@@ -74,7 +72,7 @@ namespace gj{
         void saveHierarcyTree(const hierarcy_tree & tree) const;
         void saveFRH(const foreign_ref_holders_t & FRH) const;
         public:
-        hint_db_cache_manager(const std::string & cacheDir = DEFAULT_CACHE_DIR) : ro_hint_db_cache_manager(cacheDir){}
+        hint_db_cache_manager(const std::string & baseDir, const std::string & cacheDir) : ro_hint_db_cache_manager(baseDir, cacheDir){}
         splitted_json_hint_base & retreive(const std::string & filename);
         hierarcy_tree & retreive_hierarcy();
         foreign_ref_holders_t & retreive_FRH();
@@ -82,7 +80,7 @@ namespace gj{
     };
     class ro_hint_base_cacher : public unordered_map<std::string, hint_base_t>, private ro_hint_db_cache_manager_base{
         public:
-        ro_hint_base_cacher(const std::string & cacheDir = DEFAULT_CACHE_DIR) : ro_hint_db_cache_manager_base(cacheDir){}
+        ro_hint_base_cacher(const std::string & baseDir, const std::string & cacheDir) : ro_hint_db_cache_manager_base(baseDir, cacheDir){}
         const hint_base_t & retreive(const std::string & filename);
     };
 

@@ -4,5 +4,5 @@ project (GJumper)
 
 add_subdirectory(src)
 
-install(PROGRAMS gjumper.sh DESTINATION .)
+install(PROGRAMS gj_compile.sh DESTINATION .)
 install(FILES gj.vim DESTINATION .)

@@ -6,6 +6,11 @@
 
 namespace gj{
     class communication_relay{
+        gj::processor processor;
+        Json::Value processResolveRequest(const Json::Value & json);
+        Json::Value processRecacheRequest(const Json::Value & json);
+        Json::Value processFullRecacheRequest(const Json::Value & json);
+        public:
         static constexpr const char * const REQ_TYPE = "type";
         static constexpr const char * const REQ_TYPE_RESOLVE = "resolve";
         static constexpr const char * const REQ_TYPE_RECACHE = "recache";
@@ -17,21 +22,12 @@ namespace gj{
         static constexpr const int RESP_STATUS_OK = 1;
         static constexpr const int RESP_STATUS_INVALID_REQ = 2;
         static constexpr const int RESP_STATUS_ERROR = 3;
-        gj::processor processor;
-
-        
-        Json::Value processResolveRequest(const Json::Value & json);
-        Json::Value processRecacheRequest(const Json::Value & json);
-        Json::Value processFullRecacheRequest(const Json::Value & json);
-        static Json::Value createResponseForInvalidRequest();
-        static Json::Value createResponseForOk();
-        static Json::Value createResponseForError();
-
-
-        public:
         static Json::Value createResolveRequest(const char * filename, int line, int index = -1);
         static Json::Value createRecacheRequest(const char * filename);
         static Json::Value createFullRecacheRequest();
+        static Json::Value createResponseForInvalidRequest();
+        static Json::Value createResponseForOk();
+        static Json::Value createResponseForError();
         Json::Value processRequest(const Json::Value & json);
     };
 

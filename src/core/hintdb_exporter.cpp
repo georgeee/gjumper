@@ -1,5 +1,8 @@
 #include "hintdb_exporter.h"
 #include "datatypes.h"
+#include <boost/filesystem.hpp>
+
+using namespace boost::filesystem;
 
 using namespace gj;
 
@@ -22,10 +25,10 @@ void hintdb_json_exporter::export_base(const hint_base_t & hints){
     out << writer.write(getJSONValue(hints));
 }
 
-Json::Value hintdb_json_exporter::getJSONValue(const hint_base_t & hints){
+Json::Value hintdb_json_exporter::getJSONValue(const hint_base_t & hints, const std::string & baseDir){
     Json::Value val;
     for(auto pair : hints)
-        val.append(getJSONValue(*pair.second));
+        val.append(getJSONValue(*pair.second, baseDir));
     return val;
 }
 hint_base_t hintdb_json_importer::retrieve_hint_base(const Json::Value & jsonValue){
@@ -35,10 +38,10 @@ hint_base_t hintdb_json_importer::retrieve_hint_base(const Json::Value & jsonVal
     return hints;
 }
 
-Json::Value hintdb_json_exporter::getJSONValue(const hint_t & hint){
+Json::Value hintdb_json_exporter::getJSONValue(const hint_t & hint, const std::string & baseDir){
     Json::Value val;
     val[hintdb_json_idxs::hint_range] = getJSONValue(hint.range);
-    val[hintdb_json_idxs::hint_pos] = getJSONValue(hint.pos);
+    val[hintdb_json_idxs::hint_pos] = getJSONValue(hint.pos, baseDir);
     val[hintdb_json_idxs::hint_src_name] = hint.src_name;
     val[hintdb_json_idxs::hint_dest_name] = hint.dest_name;
     val[hintdb_json_idxs::hint_type] = getJSONValue(hint.type);
@@ -66,9 +69,12 @@ pos_t hintdb_json_importer::retrieve_pos(const Json::Value & val){
     return pos_t(val[0].asInt(), val[1].asInt());
 }
 
-Json::Value hintdb_json_exporter::getJSONValue(const abs_pos_t & pos){
+Json::Value hintdb_json_exporter::getJSONValue(const abs_pos_t & pos, const std::string & baseDir){
     Json::Value val;
-    val[0] = pos.file;
+    if(baseDir.empty())
+        val[0] = pos.file;
+    else
+        val[0] = canonical(path(baseDir) /= pos.file).string();
     val[1] = pos.pos.line;
     val[2] = pos.pos.index;
     return val;
